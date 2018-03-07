@@ -9,7 +9,6 @@ def load_data(path):
     users = pd.read_csv(path+'/users.tsv', sep='\t')
     test_users = pd.read_csv(path+'/test_users.tsv', sep='\t')
     apps = pd.read_csv(path+'/apps.tsv', sep='\t')
-    
     user_history = pd.read_csv(path+'/user_history.tsv', sep='\t')
     datamap = {
         'users':users,
@@ -25,7 +24,7 @@ def data_info(data):
     print 'number of columns:'
     print len(data.columns)
 
-def predict(data):
+def user_based_prediction():
     wd = "./dataset/" # The directory that the data files are in
 
     #user-job table
@@ -118,6 +117,7 @@ def predict(data):
                 if Split == "Train":
                     continue
                 top_jobs = predicted_job_tuples[UserId]
+                #if predicted user application is less than 150, fill it with popular jobs in the same city or state 
                 if len(top_jobs) < 150:
                    top_jobs += top_city_jobs[int(WindowId)][State][City]
                 if len(top_jobs) < 150:
@@ -131,6 +131,6 @@ if __name__ == '__main__':
     users = datamap['users']
     user_history = datamap['user_history']
     data_info(users)
-    data_info(datamap['user_history'])
-    data_info(datamap['apps'])
-    predict(datamap)
+    #data_info(datamap['user_history'])
+    #data_info(datamap['apps'])
+    user_based_prediction()

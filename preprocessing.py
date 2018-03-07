@@ -1,6 +1,6 @@
 from collections import defaultdict as ddict
 
-#ratio of training date/all data for each User
+#ratio of training data/all data for each User
 ratio = 0.65 
 
 #split the apps.tsv into appstrain.tsv and appstest.tsv
