@@ -25,7 +25,7 @@ def data_info(data):
     print len(data.columns)
 
 def user_based_prediction():
-    wd = "./dataset/" # The directory that the data files are in
+    path = "./dataset/" # The directory that the data files are in
 
     #user-job table
     user_jobs = ddict(list)
@@ -34,7 +34,7 @@ def user_based_prediction():
     predicted_user_jobs = ddict(lambda: ddict(list))
     print "Recording job locations..."
     job_info = {}
-    with open(wd + "splitjobs/jobs1.tsv", "r") as infile:
+    with open(path + "splitjobs/jobs1.tsv", "r") as infile:
         reader = csv.reader(infile, delimiter="\t", 
         quoting=csv.QUOTE_NONE, quotechar="")
         reader.next() # burn the header
@@ -45,7 +45,7 @@ def user_based_prediction():
             # The terminal zero is for an application count
 
     print "Counting applications..."
-    with open(wd + "appstrain.tsv") as infile:
+    with open(path + "appstrain.tsv") as infile:
         reader = csv.reader(infile, delimiter="\t")
         reader.next() # burn the header
         for line in reader:
@@ -55,7 +55,7 @@ def user_based_prediction():
             job_users[JobId].append(UserId)
 
     print "Finding similar jobs..."
-    with open(wd + "users.tsv", "r") as infile:
+    with open(path + "users.tsv", "r") as infile:
         reader = csv.reader(infile, delimiter="\t", 
         quoting=csv.QUOTE_NONE, quotechar="")
         reader.next() # burn the header
@@ -103,28 +103,62 @@ def user_based_prediction():
             top_state_jobs[window][state].reverse()
 
     print "Making predictions..."
-    with open(wd + "users.tsv", "r") as infile:
+    with open(path + "users.tsv", "r") as infile:
         reader = csv.reader(infile, delimiter="\t", 
         quoting=csv.QUOTE_NONE, quotechar="")
         reader.next() # burn the header
-        with open("popular_jobs2.csv", "w") as outfile:
-            outfile.write("UserId, JobIds\n")
+        with open("user_based_prediction.csv", "w") as outfile:
+            outfile.write("UserId,JobIds\n")
             for line in reader:
                 (UserId, WindowId, Split, City, State, Country, ZipCode,
                 DegreeType, Major, GraduationDate, WorkHistoryCount,
                 TotalYearsExperience, CurrentlyEmployed, ManagedOthers,
                 ManagedHowMany) = line
-                if Split == "Train":
-                    continue
-                top_jobs = predicted_job_tuples[UserId]
-                #if predicted user application is less than 150, fill it with popular jobs in the same city or state 
-                if len(top_jobs) < 150:
-                   top_jobs += top_city_jobs[int(WindowId)][State][City]
-                if len(top_jobs) < 150:
-                    top_jobs += top_state_jobs[int(WindowId)][State]
-                top_jobs = top_jobs[0:150]
-                outfile.write(str(UserId) + "," + " ".join([x[0] for x in top_jobs]) + "\n")
+                if Split == "Test":
+                    top_jobs = predicted_job_tuples[UserId]
+                    #if predicted user application is less than 150, fill it with popular jobs in the same city or state 
+                    if len(top_jobs) < 150:
+                       top_jobs += top_city_jobs[int(WindowId)][State][City]
+                    if len(top_jobs) < 150:
+                        top_jobs += top_state_jobs[int(WindowId)][State]
+                    top_jobs = top_jobs[0:150]
+                    outfile.write(str(UserId) + "," + " ".join([x[0] for x in top_jobs]) + "\n")
 
+def statistic_result():         
+    path = "./dataset/"
+    #both userid and jobId are converted to string object
+    correct_predict_count = 0
+    app_count = 0
+    predict_count = 0
+
+    user_jobs = ddict(list)
+    with open(path + "appstest.tsv") as infile:
+        reader = csv.reader(infile, delimiter="\t")
+        reader.next() # burn the header
+        for line in reader:
+            (userId, windowID, split, applicationDate, jobId) = line
+            #if WindowID == 2: break
+            app_count += 1
+            user_jobs[userId].append(jobId)
+
+    predicts = pd.read_csv('./user_based_prediction.csv', sep=',', converters={'JobIds': lambda x: str(x), 'UserId': lambda x: str(x)})
+    #print len(predicts.index)
+    for index, row in predicts.iterrows():
+        userId = row["UserId"]
+        for job in row["JobIds"].split():
+            predict_count += 1
+            if job in user_jobs[userId]:
+                #test code
+                '''
+                if correct_predict_count < 10:
+                    print job
+                    print user_jobs[userId]
+                    '''
+                #print job
+                correct_predict_count += 1
+    print "correctly predicted application number: " + str(correct_predict_count)
+    print "total application number: " + str(app_count)
+    print "total predicted number: " + str(predict_count)
 
 if __name__ == '__main__':
     datamap = load_data('./dataset')
@@ -134,3 +168,4 @@ if __name__ == '__main__':
     #data_info(datamap['user_history'])
     #data_info(datamap['apps'])
     user_based_prediction()
+    statistic_result()
