@@ -8,14 +8,14 @@ import pdb
 
 def load_data(path):
     users = pd.read_csv(path+'/users.tsv', sep='\t')
-    test_users = pd.read_csv(path+'/test_users.tsv', sep='\t')
-    apps = pd.read_csv(path+'/apps.tsv', sep='\t')
-    user_history = pd.read_csv(path+'/user_history.tsv', sep='\t')
+    #test_users = pd.read_csv(path+'/test_users.tsv', sep='\t')
+    #apps = pd.read_csv(path+'/apps.tsv', sep='\t')
+    #user_history = pd.read_csv(path+'/user_history.tsv', sep='\t')
     datamap = {
         'users':users,
-        'test_users':test_users,
-        'apps':apps,
-        'user_history':user_history
+        #'test_users':test_users,
+        #'apps':apps,
+        #'user_history':user_history
     }
     return datamap
 
