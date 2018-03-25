@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import csv
 from collections import defaultdict as ddict
+from evaluation import evaluation  
 import pdb
 
 
@@ -24,15 +25,18 @@ def data_info(data):
     print 'number of columns:'
     print len(data.columns)
 
-def user_based_prediction():
+def user_based_prediction(number_of_prediction):
     path = "./dataset/" # The directory that the data files are in
-
+    user_based_prediction = pd.read_csv(path + "test_app_project.tsv", sep='\t',header=0)
+    test_users =  user_based_prediction['UserID'].apply(str)
+    test_users = test_users.unique();#get distinct test users
+    test_users = test_users.tolist();#convert nparray to list
     #user-job table
     user_jobs = ddict(list)
     #job-user table
     job_users = ddict(list)
     predicted_user_jobs = ddict(lambda: ddict(list))
-    print "Recording job locations..."
+    print "-----              Recording job information              -----"
     job_info = {}
     with open(path + "splitjobs/jobs1.tsv", "r") as infile:
         reader = csv.reader(infile, delimiter="\t", 
@@ -44,65 +48,80 @@ def user_based_prediction():
             job_info[str(Jobid)] = [int(WindowId), State, City, 0]
             # The terminal zero is for an application count
 
-    print "Counting applications..."
-    with open(path + "appstrain.tsv") as infile:
+    print "-----                Scanning applications                -----"
+    with open(path + "train_app_project.tsv") as infile:
         reader = csv.reader(infile, delimiter="\t")
         reader.next() # burn the header
         for line in reader:
-            (UserId, WindowID, Split, ApplicationDate, JobId) = line
-            if WindowID == 2: break
-            user_jobs[UserId].append(JobId)
-            job_users[JobId].append(UserId)
+            (index, userId, split, applicationDate, jobId) = line
+            #if windowID == 2: break
+            user_jobs[str(userId)].append(str(jobId))
+            job_users[str(jobId)].append(str(userId))
 
-    print "Finding similar jobs..."
-    with open(path + "users.tsv", "r") as infile:
+    print "-----     Predicting applications using Jaccard index     -----"
+    with open(path + "test_app_project.tsv", "r") as infile:
         reader = csv.reader(infile, delimiter="\t", 
         quoting=csv.QUOTE_NONE, quotechar="")
         reader.next() # burn the header
+        count = 0
         for line in reader:
-            (UserId, WindowId, Split, City, State, Country, ZipCode,
-            DegreeType, Major, GraduationDate, WorkHistoryCount,
-            TotalYearsExperience, CurrentlyEmployed, ManagedOthers,
-            ManagedHowMany) = line
-            if Split == "Train":
+            (index, userId, split, application, job_id) = line
+            userId = str(userId)
+            job_id = str(job_id)
+            if userId not in test_users:
                 continue
+            test_users.remove(userId)
 
             #user-based collaborative filter algorithm
-            for job_id in user_jobs[UserId]:
-               for user_id1 in job_users[job_id]:
-                  union_size = len(set(user_jobs[UserId] + user_jobs[user_id1]))
-                  for job_id1 in user_jobs[user_id1]:
-                     if job_id1 in user_jobs[UserId]: break
-                     if predicted_user_jobs[UserId].has_key(job_id1):
-                        predicted_user_jobs[UserId][job_id1] += 1.0/union_size
-                     else:
-                        predicted_user_jobs[UserId][job_id1] = 1.0/union_size
+            for job_id in user_jobs[userId]:
+                #job_id : jobs that the test user apply
+                for user_id1 in job_users[job_id]:
+                    #users that apply the same job
+                    union_size = len(set(user_jobs[userId] + user_jobs[user_id1]))#size of the jobs 
+                    for job_id1 in user_jobs[user_id1]:
+                        #jobs that the similar user apply(has applied jobs in common with the oroginal user)
+                        if job_id1 in user_jobs[userId]: break #if the user already apply that job, break
+                        if predicted_user_jobs[userId].has_key(job_id1):
+                            #if it is already in the prediction set, add 1/(user A 'and' user B) to the predicted_rank of the user
+                            predicted_user_jobs[userId][job_id1] += 1.0/union_size 
+                        else:
+                            #if not, init the predicted_user_jobs
+                            predicted_user_jobs[userId][job_id1] = 1.0/union_size
+            print '-' * (count % 100)
+            count += 1
 
-    print "Sorting collaborative filtering jobs..."
+    print "-----          Sorting user-based CF ranked jobs          -----"
     predicted_job_tuples = ddict(list)
     for user_id in predicted_user_jobs.keys():
        for job_id, count in predicted_user_jobs[user_id].items():
           predicted_job_tuples[user_id].append((job_id, count))
        predicted_job_tuples[user_id].sort(key=lambda x: x[1])
        predicted_job_tuples[user_id].reverse()
-
+    #pdb.set_trace()
+    '''
     #information based recommendation
-    print "Sorting jobs on based on popularity..."
-    top_city_jobs = ddict(lambda: ddict(lambda: ddict(list)))
-    top_state_jobs = ddict(lambda: ddict(list))
+    print "-----         Adding jobs on based on popularity          -----"
+    top_city_jobs = ddict(lambda: ddict(list))
+    top_state_jobs = ddict(list)
     for (job_id, (window, State, City, count)) in job_info.items():
-        top_city_jobs[window][State][City].append((job_id, count))
-        top_state_jobs[window][State].append((job_id, count))
-    for window in [1]:
-        for state in top_city_jobs[window]:
-            for city in top_city_jobs[window][state]:
-                top_city_jobs[window][state][city].sort(key=lambda x: x[1])
-                top_city_jobs[window][state][city].reverse()
-        for state in top_state_jobs[window]:
-            top_state_jobs[window][state].sort(key=lambda x: x[1])
-            top_state_jobs[window][state].reverse()
+        top_city_jobs[State][City].append((job_id, count))
+        top_state_jobs[State].append((job_id, count))
+    
+    for state in top_city_jobs:
+        for city in top_city_jobs[state]:
+            top_city_jobs[state][city].sort(key=lambda x: x[1])
+            top_city_jobs[state][city].reverse()
+    for state in top_state_jobs:
+        top_state_jobs[state].sort(key=lambda x: x[1])
+        top_state_jobs[state].reverse()
+        '''
 
-    print "Making predictions..."
+    print "-----                Making predictions                   -----"
+    user_based_prediction = pd.read_csv(path + "test_app_project.tsv", sep='\t',header=0)
+    test_users =  user_based_prediction['UserID'].apply(str)
+    test_users = test_users.unique();#get distinct test users
+
+    
     with open(path + "users.tsv", "r") as infile:
         reader = csv.reader(infile, delimiter="\t", 
         quoting=csv.QUOTE_NONE, quotechar="")
@@ -114,58 +133,34 @@ def user_based_prediction():
                 DegreeType, Major, GraduationDate, WorkHistoryCount,
                 TotalYearsExperience, CurrentlyEmployed, ManagedOthers,
                 ManagedHowMany) = line
-                if Split == "Test":
+
+                
+
+                if UserId in test_users:
+                    #print '-' * (count % 100)
+                    #count += 1    
                     top_jobs = predicted_job_tuples[UserId]
-                    #if predicted user application is less than 150, fill it with popular jobs in the same city or state 
-                    if len(top_jobs) < 150:
-                       top_jobs += top_city_jobs[int(WindowId)][State][City]
-                    if len(top_jobs) < 150:
-                        top_jobs += top_state_jobs[int(WindowId)][State]
-                    top_jobs = top_jobs[0:150]
-                    outfile.write(str(UserId) + "," + " ".join([x[0] for x in top_jobs]) + "\n")
-
-def statistic_result():         
-    path = "./dataset/"
-    #both userid and jobId are converted to string object
-    correct_predict_count = 0
-    app_count = 0
-    predict_count = 0
-
-    user_jobs = ddict(list)
-    with open(path + "appstest.tsv") as infile:
-        reader = csv.reader(infile, delimiter="\t")
-        reader.next() # burn the header
-        for line in reader:
-            (userId, windowID, split, applicationDate, jobId) = line
-            #if WindowID == 2: break
-            app_count += 1
-            user_jobs[userId].append(jobId)
-
-    predicts = pd.read_csv('./user_based_prediction.csv', sep=',', converters={'JobIds': lambda x: str(x), 'UserId': lambda x: str(x)})
-    #print len(predicts.index)
-    for index, row in predicts.iterrows():
-        userId = row["UserId"]
-        for job in row["JobIds"].split():
-            predict_count += 1
-            if job in user_jobs[userId]:
-                #test code
-                '''
-                if correct_predict_count < 10:
-                    print job
-                    print user_jobs[userId]
+                    #if predicted user application is less than n, fill it with popular jobs in the same city or state 
                     '''
-                #print job
-                correct_predict_count += 1
-    print "correctly predicted application number: " + str(correct_predict_count)
-    print "total application number: " + str(app_count)
-    print "total predicted number: " + str(predict_count)
+                    if len(top_jobs) < number_of_prediction:
+                       top_jobs += top_city_jobs[State][City]
+                    if len(top_jobs) < number_of_prediction:
+                        top_jobs += top_state_jobs[State]
+                        '''
+                    top_jobs = top_jobs[0:number_of_prediction]
+                    outfile.write(str(UserId) + "," + " ".join([x[0] for x in top_jobs]) + "\n")
+    #return user_job score
+    model = predicted_user_jobs
+    return model       
+
+
 
 if __name__ == '__main__':
     datamap = load_data('./dataset')
     users = datamap['users']
     user_history = datamap['user_history']
-    data_info(users)
+    #data_info(users)
     #data_info(datamap['user_history'])
     #data_info(datamap['apps'])
-    user_based_prediction()
-    statistic_result()
+    model = user_based_prediction(5)
+    evaluation(model,5)
