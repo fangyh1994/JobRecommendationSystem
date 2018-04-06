@@ -158,7 +158,7 @@ def user_based_prediction(number_of_prediction):
 if __name__ == '__main__':
     datamap = load_data('./dataset')
     users = datamap['users']
-    user_history = datamap['user_history']
+    #user_history = datamap['user_history']
     #data_info(users)
     #data_info(datamap['user_history'])
     #data_info(datamap['apps'])
